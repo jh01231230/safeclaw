@@ -1,6 +1,6 @@
 // Defaults for agent metadata when upstream does not supply them.
-// Model id uses pi-ai's built-in Anthropic catalog.
-export const DEFAULT_PROVIDER = "anthropic";
-export const DEFAULT_MODEL = "claude-opus-4-5";
-// Context window: Opus 4.5 supports ~200k tokens (per pi-ai models.generated.ts).
+// These should be broadly-available defaults used when config does not specify a model.
+export const DEFAULT_PROVIDER = "minimax";
+export const DEFAULT_MODEL = "MiniMax-M2.1";
+// Context window: MiniMax M2.1 supports ~200k tokens.
 export const DEFAULT_CONTEXT_TOKENS = 200_000;
