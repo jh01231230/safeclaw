@@ -23,13 +23,15 @@ repos:
     hooks:
       - id: no-service-role
         name: Block service_role keys
-        entry: bash -c 'if git diff --cached --name-only | xargs grep -l "service_role" 2>/dev/null; then echo "ERROR: service_role key detected in staged files"; exit 1; fi'
+        entry: >-
+          bash -c 'if git diff --cached --name-only | xargs grep -l "service_role" 2>/dev/null; then echo "ERROR: service_role key detected in staged files"; exit 1; fi'
         language: system
         pass_filenames: false
 
       - id: no-curl-pipe-sh
         name: Block curl|sh patterns
-        entry: bash -c 'if git diff --cached | grep -E "curl.*\|\s*(ba)?sh|wget.*\|\s*(ba)?sh|bash\s*<\(curl" 2>/dev/null; then echo "ERROR: Dangerous curl|sh pattern detected"; exit 1; fi'
+        entry: >-
+          bash -c 'if git diff --cached | grep -E "curl.*\|\s*(ba)?sh|wget.*\|\s*(ba)?sh|bash\s*<\(curl" 2>/dev/null; then echo "ERROR: Dangerous curl|sh pattern detected"; exit 1; fi'
         language: system
         pass_filenames: false
 
@@ -55,32 +57,32 @@ repos:
     rev: v4.5.0
     hooks:
       - id: check-added-large-files
-        args: ['--maxkb=1000']
+        args: ["--maxkb=1000"]
       - id: check-case-conflict
       - id: check-merge-conflict
       - id: check-symlinks
       - id: check-json
       - id: check-yaml
-        args: ['--allow-multiple-documents']
+        args: ["--allow-multiple-documents"]
       - id: detect-private-key
       - id: end-of-file-fixer
       - id: trailing-whitespace
       - id: mixed-line-ending
-        args: ['--fix=lf']
+        args: ["--fix=lf"]
 
   # Detect AWS credentials
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0
     hooks:
       - id: detect-aws-credentials
-        args: ['--allow-missing-credentials']
+        args: ["--allow-missing-credentials"]
 
   # Shell script linting
   - repo: https://github.com/shellcheck-py/shellcheck-py
     rev: v0.9.0.6
     hooks:
       - id: shellcheck
-        args: ['--severity=warning']
+        args: ["--severity=warning"]
         files: \.(sh|bash)$
 
   # Commit message format
@@ -92,10 +94,10 @@ repos:
 
 # CI-only hooks (run these in CI but not on every commit)
 ci:
-  autofix_commit_msg: '[pre-commit.ci] auto fixes'
+  autofix_commit_msg: "[pre-commit.ci] auto fixes"
   autofix_prs: true
-  autoupdate_branch: ''
-  autoupdate_commit_msg: '[pre-commit.ci] pre-commit autoupdate'
+  autoupdate_branch: ""
+  autoupdate_commit_msg: "[pre-commit.ci] pre-commit autoupdate"
   autoupdate_schedule: weekly
   skip: []
   submodules: false

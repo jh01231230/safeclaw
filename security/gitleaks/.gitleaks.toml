@@ -209,9 +209,9 @@ paths = [
 
 # Exclude known safe patterns
 regexes = [
-  '''sk-[a-z]+$''',  # Placeholder like sk-test
+  '''sk-[a-z]+$''', # Placeholder like sk-test
   '''YOUR[-_]API[-_]KEY''',
-  '''<[A-Z_]+>''',  # Placeholder like <API_KEY>
+  '''<[A-Z_]+>''', # Placeholder like <API_KEY>
   '''EXAMPLE[-_]''',
   '''PLACEHOLDER''',
 ]

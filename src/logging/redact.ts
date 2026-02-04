@@ -310,7 +310,9 @@ export function safeEnvSnapshot(env: NodeJS.ProcessEnv = process.env): Record<st
   ];
 
   for (const [key, value] of Object.entries(env)) {
-    if (!value) continue;
+    if (!value) {
+      continue;
+    }
 
     const isSensitive = sensitiveEnvPatterns.some((pattern) => pattern.test(key));
     if (isSensitive) {

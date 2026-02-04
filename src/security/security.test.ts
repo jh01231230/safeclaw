@@ -1,26 +1,21 @@
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import {
-  isPublicBindAddress,
-  assertPublicBindSafe,
-  enforcePublicBindGuard,
-} from "./public-bind-guard.js";
-import {
-  checkOneLinerPattern,
-  enforceOneLinerBlocklist,
-  getBlockedPatterns,
-} from "./one-liner-blocklist.js";
+  initAnomalyDetector,
+  recordAuthFailure,
+  isIpBlocked,
+  resetAnomalyDetector,
+} from "./anomaly-detector.js";
 import {
   stripIdentityFields,
   containsForbiddenIdentityFields,
   deepStripIdentityFields,
 } from "./identity-guard.js";
 import {
-  initAnomalyDetector,
-  recordAuthFailure,
-  recordRequest,
-  isIpBlocked,
-  resetAnomalyDetector,
-} from "./anomaly-detector.js";
+  checkOneLinerPattern,
+  enforceOneLinerBlocklist,
+  getBlockedPatterns,
+} from "./one-liner-blocklist.js";
+import { isPublicBindAddress, assertPublicBindSafe } from "./public-bind-guard.js";
 import {
   createSkillSandboxPolicy,
   checkFilesystemAccess,
@@ -90,6 +85,20 @@ describe("public-bind-guard", () => {
       expect(result.reason).toContain("IP allowlist");
     });
 
+    it("blocks public binding without TLS", () => {
+      const result = assertPublicBindSafe({
+        bindHost: "0.0.0.0",
+        env: {
+          OPENCLAW_ALLOW_PUBLIC_BIND: "true",
+          OPENCLAW_PUBLIC_BIND_IP_ALLOWLIST: "203.0.113.10",
+        },
+        hasToken: true,
+        tlsEnabled: false,
+      });
+      expect(result.allowed).toBe(false);
+      expect(result.reason).toContain("TLS");
+    });
+
     it("allows public binding with all requirements met", () => {
       const result = assertPublicBindSafe({
         bindHost: "0.0.0.0",
@@ -98,6 +107,7 @@ describe("public-bind-guard", () => {
           OPENCLAW_PUBLIC_BIND_IP_ALLOWLIST: "192.168.1.1,192.168.1.2",
         },
         hasToken: true,
+        tlsEnabled: true,
       });
       expect(result.allowed).toBe(true);
     });
@@ -213,7 +223,9 @@ describe("identity-guard", () => {
           },
         },
       });
-      expect((result.outer as { inner: { impersonate?: string } }).inner.impersonate).toBeUndefined();
+      expect(
+        (result.outer as { inner: { impersonate?: string } }).inner.impersonate,
+      ).toBeUndefined();
       expect((result.outer as { inner: { safe: string } }).inner.safe).toBe("value");
     });
   });

@@ -17,6 +17,7 @@ When a security incident is suspected:
 ## Incident: Supabase Key Leak
 
 ### Detection Signals
+
 - Alert from gitleaks/trufflehog CI
 - Unexpected database queries in Supabase logs
 - User reports of unauthorized access
@@ -25,6 +26,7 @@ When a security incident is suspected:
 ### Immediate Actions (within 15 minutes)
 
 1. **Rotate the compromised key immediately**
+
    ```bash
    # In Supabase Dashboard:
    # Settings → API → Generate new service_role key
@@ -34,6 +36,7 @@ When a security incident is suspected:
 2. **Revoke old key** - Supabase automatically invalidates old keys when new ones are generated
 
 3. **Check for misuse**
+
    ```sql
    -- In Supabase SQL Editor, check recent admin operations
    SELECT * FROM auth.audit_log_entries
@@ -42,10 +45,11 @@ When a security incident is suspected:
    ```
 
 4. **Scan for exposed key in code**
+
    ```bash
    # Check if key is in any tracked files
    git log -p --all -S '<leaked_key_pattern>' | head -100
-   
+
    # Check recent commits
    git diff HEAD~50..HEAD | grep -i 'service_role\|supabase'
    ```
@@ -65,6 +69,7 @@ When a security incident is suspected:
    - CI/CD variables
 
 ### Prevention
+
 - Enable commit hooks blocking service_role patterns
 - Use environment-specific keys (dev/staging/prod)
 - Implement key rotation schedule (quarterly minimum)
@@ -74,6 +79,7 @@ When a security incident is suspected:
 ## Incident: Gateway Public Exposure
 
 ### Detection Signals
+
 - Security audit finding: `gateway.bind_no_auth`
 - External scan detecting open port
 - Unexpected connections in gateway logs
@@ -82,26 +88,29 @@ When a security incident is suspected:
 ### Immediate Actions
 
 1. **Stop the gateway**
+
    ```bash
    pkill -f openclaw-gateway
    # Or via systemd: systemctl stop openclaw-gateway
    ```
 
 2. **Firewall the port** (if stopping isn't immediate)
+
    ```bash
    # Linux
    sudo iptables -A INPUT -p tcp --dport 18789 -j DROP
-   
+
    # macOS
    sudo pfctl -e
    echo "block in on en0 proto tcp from any to any port 18789" | sudo pfctl -f -
    ```
 
 3. **Check for unauthorized access**
+
    ```bash
    # Review gateway logs
    tail -n 1000 /tmp/openclaw/openclaw-*.log | grep -E 'auth|connect|unauthorized'
-   
+
    # Check for config changes
    diff ~/.openclaw/config.yaml ~/.openclaw/config.yaml.bak
    ```
@@ -109,6 +118,7 @@ When a security incident is suspected:
 ### Recovery Actions
 
 1. **Reconfigure to loopback**
+
    ```yaml
    # In ~/.openclaw/config.yaml
    gateway:
@@ -118,6 +128,7 @@ When a security incident is suspected:
    ```
 
 2. **Regenerate auth token**
+
    ```bash
    openssl rand -hex 32  # Generate new token
    ```
@@ -128,10 +139,11 @@ When a security incident is suspected:
    ```yaml
    gateway:
      tailscale:
-       mode: serve  # NOT funnel unless intentional
+       mode: serve # NOT funnel unless intentional
    ```
 
 ### Prevention
+
 - Always use `bind: loopback` (default)
 - For remote access, use SSH tunnel or Tailscale
 - Enable and configure IP allowlists for any non-loopback binding
@@ -141,6 +153,7 @@ When a security incident is suspected:
 ## Incident: Skills Supply-Chain Attack
 
 ### Detection Signals
+
 - Unknown skill executing unexpected commands
 - Network connections to suspicious hosts
 - File system modifications outside workspace
@@ -149,15 +162,17 @@ When a security incident is suspected:
 ### Immediate Actions
 
 1. **Disable the suspicious skill**
+
    ```bash
    # Remove from allowlist
    openclaw config set plugins.<skill_id>.enabled false
-   
+
    # Or remove skill files entirely
    rm -rf ~/.openclaw/skills_local/<skill_id>/
    ```
 
 2. **Kill any running skill processes**
+
    ```bash
    # Find and kill skill-related processes
    pgrep -f 'openclaw.*skill' | xargs kill -9
@@ -172,6 +187,7 @@ When a security incident is suspected:
 ### Recovery Actions
 
 1. **Audit skill execution history**
+
    ```bash
    grep -r 'skill.*execute' /tmp/openclaw/openclaw-*.log
    ```
@@ -182,10 +198,11 @@ When a security incident is suspected:
    - SSH keys: `cat ~/.ssh/authorized_keys`
 
 3. **Verify workspace integrity**
+
    ```bash
    # Check for unexpected files
    find ~/.openclaw -mtime -1 -type f
-   
+
    # Check file hashes if baseline exists
    find ~/.openclaw -type f -exec sha256sum {} \; | diff - baseline.txt
    ```
@@ -193,6 +210,7 @@ When a security incident is suspected:
 4. **Rebuild from clean state** if compromise is confirmed
 
 ### Prevention
+
 - Enable skills allowlist (`OPENCLAW_SKILLS_ALLOWLIST`)
 - Disable remote skill installation
 - Review skill code before adding to allowlist
@@ -203,6 +221,7 @@ When a security incident is suspected:
 ## Incident: Identity Impersonation
 
 ### Detection Signals
+
 - Messages appearing from unexpected users
 - Actions attributed to wrong accounts
 - User reports of messages they didn't send
@@ -211,6 +230,7 @@ When a security incident is suspected:
 ### Immediate Actions
 
 1. **Review recent messages** for impersonated content
+
    ```bash
    # Check for impersonation attempts in logs
    grep -E 'impersonate|post_as|actor.*override' /tmp/openclaw/openclaw-*.log
@@ -257,6 +277,7 @@ export OPENCLAW_SECURITY_WEBHOOK_URL="https://your-alerting-service.com/webhook"
 ```
 
 Webhook payload format:
+
 ```json
 {
   "event": "SECURITY_EVENT",

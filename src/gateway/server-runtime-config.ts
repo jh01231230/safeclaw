@@ -101,6 +101,7 @@ export async function resolveGatewayRuntimeConfig(params: {
     hasToken,
     hasPassword,
     hasTailscaleAuth: resolvedAuth.allowTailscale && tailscaleMode === "serve",
+    tlsEnabled: params.cfg.gateway?.tls?.enabled === true,
   });
 
   return {

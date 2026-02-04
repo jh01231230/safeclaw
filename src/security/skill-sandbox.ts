@@ -81,12 +81,7 @@ const DEFAULT_PERMISSIONS: Required<SkillPermissions> = {
 /**
  * Always-denied paths (cannot be overridden)
  */
-const HARDCODED_DENIED_PATHS = [
-  "/etc/shadow",
-  "/etc/sudoers",
-  "~/.ssh/id_*",
-  "~/.gnupg/private*",
-];
+const HARDCODED_DENIED_PATHS = ["/etc/shadow", "/etc/sudoers", "~/.ssh/id_*", "~/.gnupg/private*"];
 
 /**
  * Always-denied commands (cannot be overridden)
@@ -123,7 +118,8 @@ export function createSkillSandboxPolicy(params: {
   permissions?: SkillPermissions;
   baseDir?: string;
 }): SkillSandboxPolicy {
-  const baseDir = params.baseDir ?? process.env.OPENCLAW_STATE_DIR ?? `${process.env.HOME}/.openclaw`;
+  const baseDir =
+    params.baseDir ?? process.env.OPENCLAW_STATE_DIR ?? `${process.env.HOME}/.openclaw`;
   const sandboxDir = path.join(baseDir, "skill_sandboxes", params.skillId);
 
   const permissions: SkillPermissions = {

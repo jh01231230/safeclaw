@@ -7,37 +7,47 @@ This document details the known security risks in OpenClaw and the applied mitig
 ### P0 - Critical
 
 #### 1. Supabase service_role Key Exposure
+
 **Risk**: If a `service_role` key is exposed (via client code, logs, or version control), an attacker gains full database access—bypassing Row-Level Security (RLS), spoofing any user identity, and exfiltrating/modifying all data.
 
 **Mitigations Applied**:
+
 - Pre-commit hooks block any commit containing `service_role`
 - Gitleaks scans for Supabase key patterns
 - RLS template enforces deny-by-default policies
 - Documentation explicitly prohibits service_role in client code
 
 #### 2. Gateway Public Exposure
+
 **Risk**: Binding the gateway to `0.0.0.0` or a public IP without authentication allows anyone on the network to:
+
 - Access/modify configuration
 - Impersonate users
 - Execute commands via connected agents
 - Exfiltrate chat history and credentials
 
 **Mitigations Applied**:
+
 - Default bind is `127.0.0.1` (loopback only)
 - `public_bind_guard` module refuses public bind without:
   - `OPENCLAW_ALLOW_PUBLIC_BIND=true` env var
-  - `OPENCLAW_PUBLIC_BIND_IP_ALLOWLIST` configured
-  - Strong auth (mTLS or OIDC) enabled
+  - `OPENCLAW_PUBLIC_BIND_IP_ALLOWLIST` configured (IP/CIDR; enforced for HTTP + WS)
+  - Gateway TLS enabled (`gateway.tls.enabled=true`) so secrets aren’t sent over plaintext
+  - Gateway auth configured (token/password and/or Tailscale Serve identity)
 - Admin endpoints require `Authorization: Bearer` token
-- Rate limiting and request size limits enforced
+- Auth failures are rate-limited per IP (to reduce brute-force/scanner noise)
+- Request size limits enforced on hook + HTTP API surfaces
 
 #### 3. Skills Supply-Chain Poisoning
+
 **Risk**: Malicious skills can be installed via:
+
 - Remote marketplaces/registries
 - Copy-paste one-liner commands (`curl|sh`)
 - Compromised plugin repos
 
 **Mitigations Applied**:
+
 - Remote skills installation disabled by default (`OPENCLAW_SKILLS_ALLOW_REMOTE_INSTALL=false`)
 - Skills allowlist enforcement (`config/skills_allowlist.json`)
 - One-liner command blocklist (detects `curl|sh`, `wget|bash`, etc.)
@@ -46,16 +56,19 @@ This document details the known security risks in OpenClaw and the applied mitig
 ### P1 - High
 
 #### 4. Identity Impersonation
+
 **Risk**: Accepting user-provided identity fields (`agent_id`, `display_name`, `actor`, `impersonate`, `post_as`) allows attackers to spoof messages and actions.
 
 **Mitigation**: All user-provided identity fields are stripped. Identity is derived only from authenticated session or bot identity.
 
 #### 5. Secret Leakage in Logs
+
 **Risk**: Sensitive data (tokens, keys, passwords) may appear in logs, making them accessible to anyone with log access.
 
 **Mitigation**: Enhanced log redaction for headers (Authorization, Cookie, x-api-key) and payload fields (token, key, secret, api_key).
 
 #### 6. Abnormal Behavior Detection
+
 **Risk**: Without monitoring, attacks (brute force, rate abuse, data exfiltration) go unnoticed.
 
 **Mitigation**: Anomaly detector monitors auth failures, request spikes, and abnormal write volumes. Triggers SECURITY_EVENT logs and optional webhook alerts.
@@ -63,6 +76,7 @@ This document details the known security risks in OpenClaw and the applied mitig
 ### P2 - Medium
 
 #### 7. Git History Secret Exposure
+
 **Risk**: Secrets committed in the past remain in git history even after deletion.
 
 **Mitigation**: `scan_git_history_for_secrets.sh` script to audit entire git history.
@@ -85,7 +99,7 @@ The following are **strictly prohibited** in OpenClaw deployments:
    - `python -c` with urllib/requests + exec
 
 3. **Public gateway binding without auth** - Never bind to `0.0.0.0` or public IP without:
-   - Strong authentication (token/password + TLS, or mTLS/OIDC)
+   - Strong authentication (token/password over HTTPS/WSS, and preferably an IP allowlist)
    - IP allowlist configured
    - Explicit opt-in via environment variable
 

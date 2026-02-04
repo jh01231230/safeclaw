@@ -92,7 +92,9 @@ export function stripIdentityFields<T extends Record<string, unknown>>(
 
   // Log if any fields were stripped
   if (strippedFields.length > 0 && !options?.silent) {
-    log.warn(`SECURITY_EVENT: stripped ${strippedFields.length} identity field(s): ${strippedFields.join(", ")}`);
+    log.warn(
+      `SECURITY_EVENT: stripped ${strippedFields.length} identity field(s): ${strippedFields.join(", ")}`,
+    );
   }
 
   return {
@@ -155,9 +157,9 @@ export function deepStripIdentityFields<T>(
 
     // Recursively process nested objects
     for (const key of Object.keys(output)) {
-      const value = (output as Record<string, unknown>)[key];
+      const value = output[key];
       if (value && typeof value === "object") {
-        (output as Record<string, unknown>)[key] = deepStripIdentityFields(value, {
+        output[key] = deepStripIdentityFields(value, {
           maxDepth,
           currentDepth: currentDepth + 1,
         });

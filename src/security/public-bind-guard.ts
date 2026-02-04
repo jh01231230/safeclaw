@@ -1,16 +1,20 @@
 /**
  * OpenClaw Public Bind Guard
  *
- * Prevents gateway from binding to public interfaces without strong authentication.
+ * Prevents gateway from binding to public interfaces without explicit opt-in and
+ * basic network hardening. This is a critical security control to prevent
+ * unauthorized access.
  * This is a critical security control to prevent unauthorized access.
  *
  * To allow public binding, ALL of the following must be satisfied:
  * 1. OPENCLAW_ALLOW_PUBLIC_BIND=true environment variable
- * 2. OPENCLAW_PUBLIC_BIND_IP_ALLOWLIST is non-empty (comma-separated IPs)
- * 3. Strong auth enabled (mTLS via OPENCLAW_REQUIRE_MTLS=true OR OIDC via OPENCLAW_OIDC_ISSUER)
+ * 2. OPENCLAW_PUBLIC_BIND_IP_ALLOWLIST is non-empty (comma-separated IPs/CIDRs)
+ * 3. Gateway TLS is enabled (HTTPS/WSS) to prevent token sniffing
+ * 4. Authentication is configured (token/password and/or Tailscale Serve auth)
  */
 
 import { createSubsystemLogger } from "../logging/subsystem.js";
+import { parseIpAllowlist, type IpAllowlistEntry } from "./ip-allowlist.js";
 
 const log = createSubsystemLogger("security/bind-guard");
 
@@ -26,6 +30,8 @@ export type PublicBindGuardOptions = {
   hasToken?: boolean;
   hasPassword?: boolean;
   hasTailscaleAuth?: boolean;
+  /** Whether the gateway is configured to serve HTTPS/WSS. */
+  tlsEnabled?: boolean;
 };
 
 /**
@@ -71,43 +77,24 @@ export function isPublicBindAddress(host: string): boolean {
 }
 
 /**
- * Checks if strong authentication is configured for public binding
- */
-function hasStrongAuth(env: NodeJS.ProcessEnv): { ok: boolean; method?: string; missing: string[] } {
-  const missing: string[] = [];
-
-  // Check for mTLS
-  if (env.OPENCLAW_REQUIRE_MTLS === "true") {
-    return { ok: true, method: "mTLS", missing: [] };
-  }
-
-  // Check for OIDC
-  if (env.OPENCLAW_OIDC_ISSUER && env.OPENCLAW_OIDC_ISSUER.trim().length > 0) {
-    return { ok: true, method: "OIDC", missing: [] };
-  }
-
-  missing.push("OPENCLAW_REQUIRE_MTLS=true");
-  missing.push("OPENCLAW_OIDC_ISSUER=<issuer-url>");
-
-  return { ok: false, missing };
-}
-
-/**
  * Parses the IP allowlist from environment
  */
-function parseIpAllowlist(env: NodeJS.ProcessEnv): string[] {
-  const raw = env.OPENCLAW_PUBLIC_BIND_IP_ALLOWLIST ?? "";
-  return raw
-    .split(",")
-    .map((ip) => ip.trim())
-    .filter(Boolean);
+function parsePublicBindIpAllowlist(
+  env: NodeJS.ProcessEnv,
+): { ok: true; entries: IpAllowlistEntry[] } | { ok: false; error: string; invalid: string[] } {
+  const raw = (env.OPENCLAW_PUBLIC_BIND_IP_ALLOWLIST ?? "").trim();
+  const parsed = parseIpAllowlist(raw);
+  if (!parsed.ok) {
+    return { ok: false, error: parsed.error, invalid: parsed.invalidEntries };
+  }
+  return { ok: true, entries: parsed.entries };
 }
 
 /**
  * Main guard function - call before server.listen() to validate bind configuration
  */
 export function assertPublicBindSafe(options: PublicBindGuardOptions): PublicBindGuardResult {
-  const { bindHost, hasToken, hasPassword, hasTailscaleAuth } = options;
+  const { bindHost, hasToken, hasPassword, hasTailscaleAuth, tlsEnabled } = options;
   const env = options.env ?? process.env;
 
   // If binding to loopback, always allowed
@@ -137,8 +124,22 @@ export function assertPublicBindSafe(options: PublicBindGuardOptions): PublicBin
   }
 
   // Check 2: IP allowlist must be configured
-  const ipAllowlist = parseIpAllowlist(env);
-  if (ipAllowlist.length === 0) {
+  const ipAllowlist = parsePublicBindIpAllowlist(env);
+  if (!ipAllowlist.ok) {
+    remediations.push("Fix OPENCLAW_PUBLIC_BIND_IP_ALLOWLIST (comma-separated IPs/CIDRs)");
+    remediations.push('Example: OPENCLAW_PUBLIC_BIND_IP_ALLOWLIST="203.0.113.10,198.51.100.0/24"');
+    log.warn(
+      `public bind guard: refusing to bind to ${bindHost} - invalid IP allowlist (${ipAllowlist.invalid.join(
+        ", ",
+      )})`,
+    );
+    return {
+      allowed: false,
+      reason: `Public binding requires a valid IP allowlist (${ipAllowlist.error})`,
+      remediations,
+    };
+  }
+  if (ipAllowlist.entries.length === 0) {
     remediations.push(
       "Set OPENCLAW_PUBLIC_BIND_IP_ALLOWLIST=<ip1>,<ip2> to specify allowed client IPs",
     );
@@ -153,18 +154,25 @@ export function assertPublicBindSafe(options: PublicBindGuardOptions): PublicBin
     };
   }
 
-  // Check 3: Strong auth must be enabled (mTLS or OIDC) OR at least basic auth
-  const strongAuth = hasStrongAuth(env);
-  const hasBasicAuth = hasToken || hasPassword || hasTailscaleAuth;
+  // Check 3: TLS must be enabled for any public bind to prevent token sniffing.
+  if (tlsEnabled !== true) {
+    remediations.push("Enable gateway TLS (HTTPS/WSS): set gateway.tls.enabled=true");
+    remediations.push("Optionally pin TLS fingerprint on clients (gateway.remote.tlsFingerprint).");
+    log.warn(`public bind guard: refusing to bind to ${bindHost} - TLS is not enabled`);
+    return {
+      allowed: false,
+      reason: "Public binding requires gateway TLS (HTTPS/WSS) to be enabled",
+      remediations,
+    };
+  }
 
-  if (!strongAuth.ok && !hasBasicAuth) {
-    remediations.push("Configure strong authentication:");
-    remediations.push("  - Set OPENCLAW_REQUIRE_MTLS=true for mTLS");
-    remediations.push("  - Or set OPENCLAW_OIDC_ISSUER=<url> for OIDC");
-    remediations.push("  - Or at minimum, set OPENCLAW_GATEWAY_TOKEN or OPENCLAW_GATEWAY_PASSWORD");
-
+  // Check 4: At least one authentication method must be configured.
+  const hasAuth = Boolean(hasToken || hasPassword || hasTailscaleAuth);
+  if (!hasAuth) {
+    remediations.push("Configure authentication:");
+    remediations.push("  - Set OPENCLAW_GATEWAY_TOKEN (recommended) or OPENCLAW_GATEWAY_PASSWORD");
+    remediations.push("  - Or enable Tailscale Serve auth (gateway.tailscale.mode=serve)");
     log.warn(`public bind guard: refusing to bind to ${bindHost} - no authentication configured`);
-
     return {
       allowed: false,
       reason: "Public binding requires authentication to be configured",
@@ -173,10 +181,10 @@ export function assertPublicBindSafe(options: PublicBindGuardOptions): PublicBin
   }
 
   // All checks passed
-  const authMethod = strongAuth.ok ? strongAuth.method : hasToken ? "token" : "password/tailscale";
+  const authMethod = hasToken ? "token" : hasPassword ? "password" : "tailscale";
 
   log.info(
-    `public bind guard: allowing bind to ${bindHost} (allowlist: ${ipAllowlist.length} IPs, auth: ${authMethod})`,
+    `public bind guard: allowing bind to ${bindHost} (allowlist: ${ipAllowlist.entries.length} entries, auth: ${authMethod}, tls: enabled)`,
   );
 
   return { allowed: true };

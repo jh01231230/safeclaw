@@ -3,6 +3,7 @@
 ## System Overview
 
 OpenClaw is a personal AI assistant gateway that:
+
 - Connects to messaging platforms (WhatsApp, Telegram, Discord, Slack, Signal, etc.)
 - Routes messages to AI providers (Claude, GPT, etc.)
 - Executes tools and skills on behalf of users
@@ -10,14 +11,14 @@ OpenClaw is a personal AI assistant gateway that:
 
 ## Assets (What We Protect)
 
-| Asset | Description | Confidentiality | Integrity | Availability |
-|-------|-------------|-----------------|-----------|--------------|
-| Database Rows | User data, chat history, preferences | HIGH | HIGH | MEDIUM |
-| API Keys | Provider keys, platform tokens | CRITICAL | HIGH | MEDIUM |
-| Agent Identity | Bot accounts, user sessions | HIGH | CRITICAL | MEDIUM |
-| Chat Logs | Message history, context | HIGH | MEDIUM | LOW |
-| Configuration | Gateway settings, allowlists | MEDIUM | CRITICAL | HIGH |
-| Credentials Store | Platform login sessions | CRITICAL | HIGH | MEDIUM |
+| Asset             | Description                          | Confidentiality | Integrity | Availability |
+| ----------------- | ------------------------------------ | --------------- | --------- | ------------ |
+| Database Rows     | User data, chat history, preferences | HIGH            | HIGH      | MEDIUM       |
+| API Keys          | Provider keys, platform tokens       | CRITICAL        | HIGH      | MEDIUM       |
+| Agent Identity    | Bot accounts, user sessions          | HIGH            | CRITICAL  | MEDIUM       |
+| Chat Logs         | Message history, context             | HIGH            | MEDIUM    | LOW          |
+| Configuration     | Gateway settings, allowlists         | MEDIUM          | CRITICAL  | HIGH         |
+| Credentials Store | Platform login sessions              | CRITICAL        | HIGH      | MEDIUM       |
 
 ## Trust Boundaries
 
@@ -63,21 +64,25 @@ OpenClaw is a personal AI assistant gateway that:
 ## Threat Actors
 
 ### External Attackers (Internet)
+
 - **Capability**: Network access, public API knowledge
 - **Motivation**: Data theft, service disruption, cryptocurrency mining
 - **Example Attacks**: Credential stuffing, API abuse, SSRF
 
 ### Malicious Platform Users
+
 - **Capability**: Legitimate platform access (WhatsApp, Discord, etc.)
 - **Motivation**: Abuse AI capabilities, access unauthorized data
 - **Example Attacks**: Prompt injection, identity spoofing, command abuse
 
 ### Supply Chain Attackers
+
 - **Capability**: Publish malicious packages/skills
 - **Motivation**: Backdoor access, data exfiltration
 - **Example Attacks**: Typosquatting, dependency confusion, skill poisoning
 
 ### Insider Threats
+
 - **Capability**: Access to source code, deployment systems
 - **Motivation**: Various
 - **Example Attacks**: Credential theft, backdoor insertion
@@ -86,18 +91,20 @@ OpenClaw is a personal AI assistant gateway that:
 
 ### T1: Supabase Key Leak → Database Takeover
 
-| Attribute | Value |
-|-----------|-------|
-| **STRIDE** | Spoofing, Tampering, Information Disclosure, Elevation of Privilege |
-| **Likelihood** | MEDIUM (keys can leak via commits, logs, client code) |
-| **Impact** | CRITICAL (full database access, identity spoofing) |
+| Attribute      | Value                                                               |
+| -------------- | ------------------------------------------------------------------- |
+| **STRIDE**     | Spoofing, Tampering, Information Disclosure, Elevation of Privilege |
+| **Likelihood** | MEDIUM (keys can leak via commits, logs, client code)               |
+| **Impact**     | CRITICAL (full database access, identity spoofing)                  |
 
 **Attack Path**:
+
 1. Attacker obtains service_role key from git history/logs/client bundle
 2. Uses key to bypass RLS and access all data
 3. Can impersonate any user, modify any record, exfiltrate everything
 
 **Mitigations**:
+
 - [x] Pre-commit hooks block service_role patterns
 - [x] Gitleaks CI scanning
 - [x] RLS enforced on all tables
@@ -107,18 +114,20 @@ OpenClaw is a personal AI assistant gateway that:
 
 ### T2: Gateway Public Exposure → Unauthorized Access
 
-| Attribute | Value |
-|-----------|-------|
-| **STRIDE** | Information Disclosure, Elevation of Privilege |
-| **Likelihood** | MEDIUM (misconfiguration possible) |
-| **Impact** | HIGH (full gateway control) |
+| Attribute      | Value                                          |
+| -------------- | ---------------------------------------------- |
+| **STRIDE**     | Information Disclosure, Elevation of Privilege |
+| **Likelihood** | MEDIUM (misconfiguration possible)             |
+| **Impact**     | HIGH (full gateway control)                    |
 
 **Attack Path**:
+
 1. User binds gateway to 0.0.0.0 without auth
 2. Attacker scans and finds open port
 3. Gains full gateway access: config, commands, chat history
 
 **Mitigations**:
+
 - [x] Default bind is 127.0.0.1
 - [x] public_bind_guard refuses public bind without strong auth
 - [x] Admin endpoints require auth token
@@ -127,18 +136,20 @@ OpenClaw is a personal AI assistant gateway that:
 
 ### T3: Skills Supply Chain → Code Execution
 
-| Attribute | Value |
-|-----------|-------|
-| **STRIDE** | Tampering, Elevation of Privilege |
+| Attribute      | Value                                  |
+| -------------- | -------------------------------------- |
+| **STRIDE**     | Tampering, Elevation of Privilege      |
 | **Likelihood** | MEDIUM (one-liner installs are common) |
-| **Impact** | CRITICAL (arbitrary code execution) |
+| **Impact**     | CRITICAL (arbitrary code execution)    |
 
 **Attack Path**:
+
 1. Attacker publishes malicious skill or compromises registry
 2. User installs via `curl|sh` or marketplace
 3. Skill executes arbitrary code with user privileges
 
 **Mitigations**:
+
 - [x] Remote skill install disabled by default
 - [x] One-liner command blocklist
 - [x] Skills allowlist enforcement
@@ -147,36 +158,40 @@ OpenClaw is a personal AI assistant gateway that:
 
 ### T4: Identity Impersonation → Message Spoofing
 
-| Attribute | Value |
-|-----------|-------|
-| **STRIDE** | Spoofing |
-| **Likelihood** | LOW (requires API access) |
-| **Impact** | MEDIUM (can send messages as others) |
+| Attribute      | Value                                |
+| -------------- | ------------------------------------ |
+| **STRIDE**     | Spoofing                             |
+| **Likelihood** | LOW (requires API access)            |
+| **Impact**     | MEDIUM (can send messages as others) |
 
 **Attack Path**:
+
 1. Attacker crafts request with fake identity fields
 2. System uses attacker-provided identity for message attribution
 3. Messages appear from spoofed user
 
 **Mitigations**:
+
 - [x] All user-provided identity fields stripped
 - [x] Identity derived only from session/bot identity
 - [ ] Message signing for verification
 
 ### T5: Secret Leakage via Logs
 
-| Attribute | Value |
-|-----------|-------|
-| **STRIDE** | Information Disclosure |
+| Attribute      | Value                         |
+| -------------- | ----------------------------- |
+| **STRIDE**     | Information Disclosure        |
 | **Likelihood** | MEDIUM (logging is pervasive) |
-| **Impact** | HIGH (credential exposure) |
+| **Impact**     | HIGH (credential exposure)    |
 
 **Attack Path**:
+
 1. Secrets accidentally logged (headers, payloads, env vars)
 2. Logs stored in accessible location or shipped to external service
 3. Attacker obtains logs and extracts secrets
 
 **Mitigations**:
+
 - [x] Redaction of sensitive headers (Authorization, Cookie, x-api-key)
 - [x] Redaction of sensitive payload fields
 - [x] process.env never logged directly
@@ -184,18 +199,20 @@ OpenClaw is a personal AI assistant gateway that:
 
 ### T6: SSRF via Skills/Tools
 
-| Attribute | Value |
-|-----------|-------|
-| **STRIDE** | Information Disclosure |
-| **Likelihood** | LOW (requires skill execution) |
-| **Impact** | MEDIUM (internal service access) |
+| Attribute      | Value                            |
+| -------------- | -------------------------------- |
+| **STRIDE**     | Information Disclosure           |
+| **Likelihood** | LOW (requires skill execution)   |
+| **Impact**     | MEDIUM (internal service access) |
 
 **Attack Path**:
+
 1. Skill makes request to internal/metadata endpoint
 2. Accesses cloud metadata (169.254.169.254) or internal services
 3. Extracts credentials or sensitive data
 
 **Mitigations**:
+
 - [x] SSRF protection in web-fetch tool
 - [x] Blocked internal IP ranges
 - [ ] Network namespace isolation for skills

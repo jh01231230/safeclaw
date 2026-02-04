@@ -29,21 +29,21 @@ export type OneLinerCheckResult = {
 const DANGEROUS_PATTERNS: Array<{ pattern: RegExp; description: string }> = [
   // curl piped to shell
   {
-    pattern: /curl\s+[^\|]*\|\s*(ba)?sh/i,
+    pattern: /curl\s+[^|]*\|\s*(ba)?sh/i,
     description: "curl piped to shell (curl | sh)",
   },
   {
-    pattern: /curl\s+[^\|]*\|\s*zsh/i,
+    pattern: /curl\s+[^|]*\|\s*zsh/i,
     description: "curl piped to zsh",
   },
 
   // wget piped to shell
   {
-    pattern: /wget\s+[^\|]*\|\s*(ba)?sh/i,
+    pattern: /wget\s+[^|]*\|\s*(ba)?sh/i,
     description: "wget piped to shell (wget | sh)",
   },
   {
-    pattern: /wget\s+-O\s*-[^\|]*\|\s*(ba)?sh/i,
+    pattern: /wget\s+-O\s*-\s*[^|]*\|\s*(ba)?sh/i,
     description: "wget -O - piped to shell",
   },
 
@@ -73,19 +73,19 @@ const DANGEROUS_PATTERNS: Array<{ pattern: RegExp; description: string }> = [
 
   // PowerShell patterns
   {
-    pattern: /iwr\s+[^\|]*\|\s*iex/i,
+    pattern: /iwr\s+[^|]*\|\s*iex/i,
     description: "PowerShell Invoke-WebRequest piped to Invoke-Expression",
   },
   {
-    pattern: /Invoke-WebRequest\s+[^\|]*\|\s*Invoke-Expression/i,
+    pattern: /Invoke-WebRequest\s+[^|]*\|\s*Invoke-Expression/i,
     description: "PowerShell Invoke-WebRequest piped to Invoke-Expression",
   },
   {
-    pattern: /\(New-Object\s+Net\.WebClient\)\.DownloadString[^\)]*\)\s*\|\s*iex/i,
+    pattern: /\(New-Object\s+Net\.WebClient\)\.DownloadString[^)]*\)\s*\|\s*iex/i,
     description: "PowerShell WebClient.DownloadString piped to iex",
   },
   {
-    pattern: /irm\s+[^\|]*\|\s*iex/i,
+    pattern: /irm\s+[^|]*\|\s*iex/i,
     description: "PowerShell Invoke-RestMethod piped to iex",
   },
 

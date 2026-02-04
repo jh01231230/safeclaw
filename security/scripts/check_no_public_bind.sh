@@ -123,7 +123,8 @@ else
   echo "  4. If public bind is intentional, ensure:"
   echo "     - OPENCLAW_ALLOW_PUBLIC_BIND=true is set"
   echo "     - OPENCLAW_PUBLIC_BIND_IP_ALLOWLIST is configured"
-  echo "     - Strong auth (mTLS or OIDC) is enabled"
+  echo "     - Gateway TLS is enabled (gateway.tls.enabled=true)"
+  echo "     - Gateway auth is configured (OPENCLAW_GATEWAY_TOKEN or OPENCLAW_GATEWAY_PASSWORD)"
 fi
 
 exit $EXIT_CODE
