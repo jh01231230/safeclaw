@@ -40,6 +40,13 @@ vi.mock("../infra/exec-approvals.js", async (importOriginal) => {
   return { ...mod, resolveExecApprovals: () => approvals };
 });
 
+// Unit tests for core tool behavior should not pay the cost of loading plugin tools.
+// Provide a minimal stub so we avoid importing the full plugin loader graph.
+vi.mock("../plugins/tools.js", () => ({
+  getPluginToolMeta: () => undefined,
+  resolvePluginTools: () => [],
+}));
+
 describe("createOpenClawCodingTools safeBins", () => {
   it("threads tools.exec.safeBins into exec allowlist checks", async () => {
     if (process.platform === "win32") {

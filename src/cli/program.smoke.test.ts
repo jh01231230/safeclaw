@@ -10,6 +10,7 @@ const callGateway = vi.fn();
 const runChannelLogin = vi.fn();
 const runChannelLogout = vi.fn();
 const runTui = vi.fn();
+const ensurePluginRegistryLoaded = vi.fn();
 
 const runtime = {
   log: vi.fn(),
@@ -49,6 +50,7 @@ vi.mock("../gateway/call.js", () => ({
     message: "Gateway target: ws://127.0.0.1:1234",
   }),
 }));
+vi.mock("./plugin-registry.js", () => ({ ensurePluginRegistryLoaded }));
 vi.mock("./deps.js", () => ({ createDefaultDeps: () => ({}) }));
 
 const { buildProgram } = await import("./program.js");

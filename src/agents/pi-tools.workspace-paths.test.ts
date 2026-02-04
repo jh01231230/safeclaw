@@ -1,8 +1,15 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createOpenClawCodingTools } from "./pi-tools.js";
+
+// These unit tests validate core tool path behavior; skip loading plugin tools.
+// Provide a minimal stub so we avoid importing the full plugin loader graph.
+vi.mock("../plugins/tools.js", () => ({
+  getPluginToolMeta: () => undefined,
+  resolvePluginTools: () => [],
+}));
 
 async function withTempDir<T>(prefix: string, fn: (dir: string) => Promise<T>) {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
