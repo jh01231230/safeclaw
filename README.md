@@ -57,9 +57,21 @@ pnpm build
 
 pnpm openclaw onboard --install-daemon
 
+# Manual refresh completion after updating repo/CLI
+OPENCLAW_FORCE_BUILD=1 pnpm openclaw completion --install --shell bash --yes
+
 # Dev loop (auto-reload on TS changes)
 pnpm gateway:watch
+
+# Check service status
+pnpm openclaw gateway status
+
+# Open TUI
+pnpm openclaw tui
 ```
+
+Note: `pnpm openclaw ...` must be run from the repo root. From any directory, use:
+`pnpm -C /path/to/safeclaw openclaw ...`
 
 Note: `pnpm openclaw ...` runs TypeScript directly (via `tsx`). `pnpm build` produces `dist/` for running via Node / the packaged `openclaw` binary.
 
@@ -86,6 +98,8 @@ pnpm openclaw message send --target +1234567890 --message "Hello from OpenClaw"
 # Talk to the assistant (optionally deliver back to any connected channel: WhatsApp/Telegram/Slack/Discord/Google Chat/Signal/iMessage/BlueBubbles/Microsoft Teams/Matrix/Zalo/Zalo Personal/WebChat)
 pnpm openclaw agent --message "Ship checklist" --thinking high
 ```
+
+Tip: If you’re not in the repo root, use `pnpm -C /path/to/safeclaw openclaw ...`.
 
 Upgrading? [Updating guide](https://docs.openclaw.ai/install/updating) (and run `pnpm openclaw doctor`).
 
@@ -117,9 +131,9 @@ Run `openclaw doctor` to surface risky/misconfigured DM policies.
 OpenClaw includes built-in protections against common attack vectors. Run the security audit anytime:
 
 ```bash
-openclaw security audit          # Quick audit
-openclaw security audit --deep   # Probe live gateway
-openclaw security audit --fix    # Auto-fix safe issues
+pnpm openclaw security audit          # Quick audit
+pnpm openclaw security audit --deep   # Probe live gateway
+pnpm openclaw security audit --fix    # Auto-fix safe issues
 ```
 
 ### Gateway bind protection

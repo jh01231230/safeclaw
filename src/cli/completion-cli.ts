@@ -2,7 +2,7 @@ import { Command, Option } from "commander";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { buildProgram } from "./program/build-program.js";
 import { getSubCliEntries, registerSubCliByName } from "./program/register.subclis.js";
 
 export function registerCompletionCli(program: Command) {
@@ -29,7 +29,7 @@ export function registerCompletionCli(program: Command) {
       }
 
       if (options.install) {
-        await installCompletion(shell, Boolean(options.yes), program.name());
+        await installCompletion(shell, Boolean(options.yes), program.name(), program);
         return;
       }
 
@@ -48,67 +48,65 @@ export function registerCompletionCli(program: Command) {
     });
 }
 
-function quotePosix(value: string): string {
-  // Safe for bash/zsh/fish in most cases; handles embedded single quotes.
-  // Example: foo'bar -> 'foo'"'"'bar'
-  const escaped = value.replaceAll("'", "'\"'\"'");
-  return "'" + escaped + "'";
-}
-
-async function findNearestPackageRoot(startDir: string): Promise<string | undefined> {
-  // Walk up to find the nearest package.json; useful for "from source" installs.
-  let cur = startDir;
-  for (let i = 0; i < 25; i++) {
-    try {
-      await fs.access(path.join(cur, "package.json"));
-      return cur;
-    } catch {
-      // keep walking
-    }
-    const parent = path.dirname(cur);
-    if (parent === cur) {
-      return undefined;
-    }
-    cur = parent;
+async function buildCompletionProgram(binName: string): Promise<Command> {
+  const program = buildProgram();
+  program.name(binName);
+  // Eagerly register all subcommands to build the full tree.
+  // This can be slow, but it runs only at install-time (not on every shell startup).
+  const entries = getSubCliEntries();
+  for (const entry of entries) {
+    await registerSubCliByName(program, entry.name);
   }
-  return undefined;
+  return program;
 }
 
-export async function installCompletion(shell: string, yes: boolean, binName = "openclaw") {
+function getCompletionCachePaths(home: string, binName: string, shell: string) {
+  const ext =
+    shell === "bash" ? "bash" : shell === "zsh" ? "zsh" : shell === "fish" ? "fish" : shell;
+  const dir = path.join(home, ".openclaw", "completions");
+  const filePath = path.join(dir, `${binName}.${ext}`);
+  const shellPath = `$HOME/.openclaw/completions/${binName}.${ext}`;
+  return { dir, filePath, shellPath };
+}
+
+export async function installCompletion(
+  shell: string,
+  yes: boolean,
+  binName = "openclaw",
+  program?: Command,
+) {
   const home = process.env.HOME || os.homedir();
   let profilePath = "";
+  let generateScript: ((program: Command) => string) | undefined;
 
   const blockStart = "# OpenClaw Completion (BEGIN)";
   const blockEnd = "# OpenClaw Completion (END)";
   const legacyMarker = "# OpenClaw Completion";
-  const legacyLines: string[] = [];
+  const legacyLines: string[] = [
+    // Older installs that re-generated completion on every shell startup.
+    `source <(${binName} completion --shell bash)`,
+    `source <(${binName} completion --shell zsh)`,
+    `${binName} completion --shell fish | source`,
+  ];
 
-  const selfDir = path.dirname(fileURLToPath(import.meta.url));
-  const packageRoot = await findNearestPackageRoot(selfDir);
-  const packageJsonPath = packageRoot ? path.join(packageRoot, "package.json") : "";
+  const {
+    dir: completionDir,
+    filePath: completionFilePath,
+    shellPath: completionShellPath,
+  } = getCompletionCachePaths(home, binName, shell);
 
   let completionBlock = "";
 
   if (shell === "zsh") {
     profilePath = path.join(home, ".zshrc");
-
-    const direct = `source <(${binName} completion --shell zsh)`;
-    const pnpm = packageRoot
-      ? `source <(env OPENCLAW_RUNNER_LOG=0 pnpm -C ${quotePosix(packageRoot)} --silent ${binName} completion --shell zsh)`
-      : "";
-    completionBlock = packageRoot
-      ? [
-          blockStart,
-          `if command -v ${binName} >/dev/null 2>&1; then`,
-          `  ${direct}`,
-          `elif command -v pnpm >/dev/null 2>&1 && [ -f ${quotePosix(packageJsonPath)} ]; then`,
-          `  ${pnpm}`,
-          "fi",
-          blockEnd,
-        ].join("\n")
-      : [blockStart, `command -v ${binName} >/dev/null 2>&1 && ${direct}`, blockEnd].join("\n");
-
-    legacyLines.push(direct, `command -v ${binName} >/dev/null 2>&1 && ${direct}`);
+    generateScript = generateZshCompletion;
+    completionBlock = [
+      blockStart,
+      `if [[ -f "${completionShellPath}" ]]; then`,
+      `  source "${completionShellPath}"`,
+      "fi",
+      blockEnd,
+    ].join("\n");
   } else if (shell === "bash") {
     // Try .bashrc first, then .bash_profile
     profilePath = path.join(home, ".bashrc");
@@ -117,50 +115,43 @@ export async function installCompletion(shell: string, yes: boolean, binName = "
     } catch {
       profilePath = path.join(home, ".bash_profile");
     }
-
-    const direct = `source <(${binName} completion --shell bash)`;
-    const pnpm = packageRoot
-      ? `source <(env OPENCLAW_RUNNER_LOG=0 pnpm -C ${quotePosix(packageRoot)} --silent ${binName} completion --shell bash)`
-      : "";
-    completionBlock = packageRoot
-      ? [
-          blockStart,
-          `if command -v ${binName} >/dev/null 2>&1; then`,
-          `  ${direct}`,
-          `elif command -v pnpm >/dev/null 2>&1 && [ -f ${quotePosix(packageJsonPath)} ]; then`,
-          `  ${pnpm}`,
-          "fi",
-          blockEnd,
-        ].join("\n")
-      : [blockStart, `command -v ${binName} >/dev/null 2>&1 && ${direct}`, blockEnd].join("\n");
-
-    legacyLines.push(direct, `command -v ${binName} >/dev/null 2>&1 && ${direct}`);
+    generateScript = generateBashCompletion;
+    completionBlock = [
+      blockStart,
+      `if [ -f "${completionShellPath}" ]; then`,
+      `  source "${completionShellPath}"`,
+      "fi",
+      blockEnd,
+    ].join("\n");
   } else if (shell === "fish") {
     profilePath = path.join(home, ".config", "fish", "config.fish");
-
-    const direct = `${binName} completion --shell fish | source`;
-    const pnpm = packageRoot
-      ? `env OPENCLAW_RUNNER_LOG=0 pnpm -C ${quotePosix(packageRoot)} --silent ${binName} completion --shell fish | source`
-      : "";
-    completionBlock = packageRoot
-      ? [
-          blockStart,
-          `if type -q ${binName}`,
-          `  ${direct}`,
-          `else if type -q pnpm; and test -f ${quotePosix(packageJsonPath)}`,
-          `  ${pnpm}`,
-          "end",
-          blockEnd,
-        ].join("\n")
-      : [blockStart, `type -q ${binName}; and ${direct}`, blockEnd].join("\n");
-
-    legacyLines.push(direct, `type -q ${binName}; and ${direct}`);
+    generateScript = generateFishCompletion;
+    completionBlock = [
+      blockStart,
+      `if test -f "${completionShellPath}"`,
+      `  source "${completionShellPath}"`,
+      "end",
+      blockEnd,
+    ].join("\n");
   } else {
     console.error(`Automated installation not supported for ${shell} yet.`);
     return;
   }
 
   try {
+    // Generate & cache completion script once (avoid running OpenClaw on every shell startup).
+    const completionProgram = program ?? (await buildCompletionProgram(binName));
+    completionProgram.name(binName);
+
+    if (!generateScript) {
+      console.error("Completion generator missing for this shell.");
+      return;
+    }
+    const script = generateScript(completionProgram);
+
+    await fs.mkdir(completionDir, { recursive: true });
+    await fs.writeFile(completionFilePath, script, "utf-8");
+
     // Check if profile exists
     try {
       await fs.access(profilePath);
@@ -224,7 +215,7 @@ export async function installCompletion(shell: string, yes: boolean, binName = "
     }
 
     // If completion is already present (manual or previous install), don't duplicate.
-    if (content.includes(`${binName} completion`)) {
+    if (content.includes(completionShellPath) || content.includes(legacyMarker)) {
       if (!yes) {
         console.log(`Completion already installed in ${profilePath}`);
       }
