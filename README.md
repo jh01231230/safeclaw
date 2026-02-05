@@ -25,8 +25,8 @@ If you want a personal, single-user assistant that feels local, fast, and always
 
 [Website](https://openclaw.ai) · [Docs](https://docs.openclaw.ai) · [DeepWiki](https://deepwiki.com/openclaw/openclaw) · [Getting Started](https://docs.openclaw.ai/start/getting-started) · [Updating](https://docs.openclaw.ai/install/updating) · [Showcase](https://docs.openclaw.ai/start/showcase) · [FAQ](https://docs.openclaw.ai/start/faq) · [Wizard](https://docs.openclaw.ai/start/wizard) · [Nix](https://github.com/openclaw/nix-clawdbot) · [Docker](https://docs.openclaw.ai/install/docker) · [Discord](https://discord.gg/clawd)
 
-Preferred setup: run the onboarding wizard (`openclaw onboard`). It walks through gateway, workspace, channels, and skills. The CLI wizard is the recommended path and works on **macOS, Linux, and Windows (via WSL2; strongly recommended)**.
-Works with npm, pnpm, or bun.
+Preferred setup: run the onboarding wizard (`pnpm openclaw onboard`). It walks through gateway, workspace, channels, and skills. The CLI wizard is the recommended path and works on **macOS, Linux, and Windows (via WSL2; strongly recommended)**.
+Works with pnpm or bun.
 New install? Start here: [Getting started](https://docs.openclaw.ai/start/getting-started)
 
 **Subscriptions (OAuth):**
@@ -41,55 +41,15 @@ Model note: while any model is supported, I strongly recommend **Anthropic Pro/M
 - Models config + CLI: [Models](https://docs.openclaw.ai/concepts/models)
 - Auth profile rotation (OAuth vs API keys) + fallbacks: [Model failover](https://docs.openclaw.ai/concepts/model-failover)
 
-## Install (recommended)
+## Install from source (development)
 
 Runtime: **Node ≥22**.
-
-```bash
-npm install -g openclaw@latest
-# or: pnpm add -g openclaw@latest
-
-openclaw onboard --install-daemon
-```
-
-The wizard installs the Gateway daemon (launchd/systemd user service) so it stays running.
-
-## Quick start (TL;DR)
-
-Runtime: **Node ≥22**.
-
-Full beginner guide (auth, pairing, channels): [Getting started](https://docs.openclaw.ai/start/getting-started)
-
-```bash
-openclaw onboard --install-daemon
-
-openclaw gateway --port 18789 --verbose
-
-# Send a message
-openclaw message send --to +1234567890 --message "Hello from OpenClaw"
-
-# Talk to the assistant (optionally deliver back to any connected channel: WhatsApp/Telegram/Slack/Discord/Google Chat/Signal/iMessage/BlueBubbles/Microsoft Teams/Matrix/Zalo/Zalo Personal/WebChat)
-openclaw agent --message "Ship checklist" --thinking high
-```
-
-Upgrading? [Updating guide](https://docs.openclaw.ai/install/updating) (and run `openclaw doctor`).
-
-## Development channels
-
-- **stable**: tagged releases (`vYYYY.M.D` or `vYYYY.M.D-<patch>`), npm dist-tag `latest`.
-- **beta**: prerelease tags (`vYYYY.M.D-beta.N`), npm dist-tag `beta` (macOS app may be missing).
-- **dev**: moving head of `main`, npm dist-tag `dev` (when published).
-
-Switch channels (git + npm): `openclaw update --channel stable|beta|dev`.
-Details: [Development channels](https://docs.openclaw.ai/install/development-channels).
-
-## From source (development)
 
 Prefer `pnpm` for builds from source. Bun is optional for running TypeScript directly.
 
 ```bash
-git clone https://github.com/openclaw/openclaw.git
-cd openclaw
+git clone https://github.com/jh01231230/safeclaw.git
+cd safeclaw
 
 pnpm install
 pnpm ui:build # auto-installs UI deps on first run
@@ -102,6 +62,41 @@ pnpm gateway:watch
 ```
 
 Note: `pnpm openclaw ...` runs TypeScript directly (via `tsx`). `pnpm build` produces `dist/` for running via Node / the packaged `openclaw` binary.
+
+The wizard installs the Gateway daemon (launchd/systemd user service) so it stays running.
+
+## Quick start (from source)
+
+Runtime: **Node ≥22**.
+
+Full beginner guide (auth, pairing, channels): [Getting started](https://docs.openclaw.ai/start/getting-started)
+
+```bash
+git clone https://github.com/jh01231230/safeclaw.git
+cd safeclaw
+
+pnpm install
+pnpm openclaw onboard --install-daemon
+
+pnpm openclaw gateway --port 18789 --verbose
+
+# Send a message
+pnpm openclaw message send --target +1234567890 --message "Hello from OpenClaw"
+
+# Talk to the assistant (optionally deliver back to any connected channel: WhatsApp/Telegram/Slack/Discord/Google Chat/Signal/iMessage/BlueBubbles/Microsoft Teams/Matrix/Zalo/Zalo Personal/WebChat)
+pnpm openclaw agent --message "Ship checklist" --thinking high
+```
+
+Upgrading? [Updating guide](https://docs.openclaw.ai/install/updating) (and run `pnpm openclaw doctor`).
+
+## Development channels
+
+- **stable**: tagged releases (`vYYYY.M.D` or `vYYYY.M.D-<patch>`).
+- **beta**: prerelease tags (`vYYYY.M.D-beta.N`) (macOS app may be missing).
+- **dev**: moving head of `main`.
+
+Switch channels (installed CLI): `openclaw update --channel stable|beta|dev`.
+Details: [Development channels](https://docs.openclaw.ai/install/development-channels).
 
 ## Security defaults (DM access)
 

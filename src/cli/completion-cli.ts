@@ -2,6 +2,7 @@ import { Command, Option } from "commander";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { getSubCliEntries, registerSubCliByName } from "./program/register.subclis.js";
 
 export function registerCompletionCli(program: Command) {
@@ -47,14 +48,67 @@ export function registerCompletionCli(program: Command) {
     });
 }
 
+function quotePosix(value: string): string {
+  // Safe for bash/zsh/fish in most cases; handles embedded single quotes.
+  // Example: foo'bar -> 'foo'"'"'bar'
+  const escaped = value.replaceAll("'", "'\"'\"'");
+  return "'" + escaped + "'";
+}
+
+async function findNearestPackageRoot(startDir: string): Promise<string | undefined> {
+  // Walk up to find the nearest package.json; useful for "from source" installs.
+  let cur = startDir;
+  for (let i = 0; i < 25; i++) {
+    try {
+      await fs.access(path.join(cur, "package.json"));
+      return cur;
+    } catch {
+      // keep walking
+    }
+    const parent = path.dirname(cur);
+    if (parent === cur) {
+      return undefined;
+    }
+    cur = parent;
+  }
+  return undefined;
+}
+
 export async function installCompletion(shell: string, yes: boolean, binName = "openclaw") {
   const home = process.env.HOME || os.homedir();
   let profilePath = "";
-  let sourceLine = "";
+
+  const blockStart = "# OpenClaw Completion (BEGIN)";
+  const blockEnd = "# OpenClaw Completion (END)";
+  const legacyMarker = "# OpenClaw Completion";
+  const legacyLines: string[] = [];
+
+  const selfDir = path.dirname(fileURLToPath(import.meta.url));
+  const packageRoot = await findNearestPackageRoot(selfDir);
+  const packageJsonPath = packageRoot ? path.join(packageRoot, "package.json") : "";
+
+  let completionBlock = "";
 
   if (shell === "zsh") {
     profilePath = path.join(home, ".zshrc");
-    sourceLine = `source <(${binName} completion --shell zsh)`;
+
+    const direct = `source <(${binName} completion --shell zsh)`;
+    const pnpm = packageRoot
+      ? `source <(env OPENCLAW_RUNNER_LOG=0 pnpm -C ${quotePosix(packageRoot)} --silent ${binName} completion --shell zsh)`
+      : "";
+    completionBlock = packageRoot
+      ? [
+          blockStart,
+          `if command -v ${binName} >/dev/null 2>&1; then`,
+          `  ${direct}`,
+          `elif command -v pnpm >/dev/null 2>&1 && [ -f ${quotePosix(packageJsonPath)} ]; then`,
+          `  ${pnpm}`,
+          "fi",
+          blockEnd,
+        ].join("\n")
+      : [blockStart, `command -v ${binName} >/dev/null 2>&1 && ${direct}`, blockEnd].join("\n");
+
+    legacyLines.push(direct, `command -v ${binName} >/dev/null 2>&1 && ${direct}`);
   } else if (shell === "bash") {
     // Try .bashrc first, then .bash_profile
     profilePath = path.join(home, ".bashrc");
@@ -63,10 +117,44 @@ export async function installCompletion(shell: string, yes: boolean, binName = "
     } catch {
       profilePath = path.join(home, ".bash_profile");
     }
-    sourceLine = `source <(${binName} completion --shell bash)`;
+
+    const direct = `source <(${binName} completion --shell bash)`;
+    const pnpm = packageRoot
+      ? `source <(env OPENCLAW_RUNNER_LOG=0 pnpm -C ${quotePosix(packageRoot)} --silent ${binName} completion --shell bash)`
+      : "";
+    completionBlock = packageRoot
+      ? [
+          blockStart,
+          `if command -v ${binName} >/dev/null 2>&1; then`,
+          `  ${direct}`,
+          `elif command -v pnpm >/dev/null 2>&1 && [ -f ${quotePosix(packageJsonPath)} ]; then`,
+          `  ${pnpm}`,
+          "fi",
+          blockEnd,
+        ].join("\n")
+      : [blockStart, `command -v ${binName} >/dev/null 2>&1 && ${direct}`, blockEnd].join("\n");
+
+    legacyLines.push(direct, `command -v ${binName} >/dev/null 2>&1 && ${direct}`);
   } else if (shell === "fish") {
     profilePath = path.join(home, ".config", "fish", "config.fish");
-    sourceLine = `${binName} completion --shell fish | source`;
+
+    const direct = `${binName} completion --shell fish | source`;
+    const pnpm = packageRoot
+      ? `env OPENCLAW_RUNNER_LOG=0 pnpm -C ${quotePosix(packageRoot)} --silent ${binName} completion --shell fish | source`
+      : "";
+    completionBlock = packageRoot
+      ? [
+          blockStart,
+          `if type -q ${binName}`,
+          `  ${direct}`,
+          `else if type -q pnpm; and test -f ${quotePosix(packageJsonPath)}`,
+          `  ${pnpm}`,
+          "end",
+          blockEnd,
+        ].join("\n")
+      : [blockStart, `type -q ${binName}; and ${direct}`, blockEnd].join("\n");
+
+    legacyLines.push(direct, `type -q ${binName}; and ${direct}`);
   } else {
     console.error(`Automated installation not supported for ${shell} yet.`);
     return;
@@ -85,6 +173,57 @@ export async function installCompletion(shell: string, yes: boolean, binName = "
     }
 
     const content = await fs.readFile(profilePath, "utf-8");
+    const lines = content.split("\n");
+    const blockLines = completionBlock.split("\n");
+
+    // Replace existing managed block.
+    const startIdx = lines.findIndex((line) => line.trim() === blockStart);
+    if (startIdx !== -1) {
+      const endIdx = lines.findIndex((line, idx) => idx > startIdx && line.trim() === blockEnd);
+      if (endIdx !== -1) {
+        const next = [...lines.slice(0, startIdx), ...blockLines, ...lines.slice(endIdx + 1)].join(
+          "\n",
+        );
+        if (next !== content) {
+          await fs.writeFile(profilePath, next, "utf-8");
+          console.log(`Completion updated. Restart your shell or run: source ${profilePath}`);
+        } else if (!yes) {
+          console.log(`Completion already installed in ${profilePath}`);
+        }
+        return;
+      }
+    }
+
+    // Upgrade the old 2-line format:
+    //   # OpenClaw Completion
+    //   <one-liner>
+    const legacyMarkerIdx = lines.findIndex((line) => line.trim() === legacyMarker);
+    if (legacyMarkerIdx !== -1) {
+      const nextLine = lines[legacyMarkerIdx + 1] ?? "";
+      if (nextLine.includes(`${binName} completion`) || nextLine.includes("pnpm -C")) {
+        const next = [
+          ...lines.slice(0, legacyMarkerIdx),
+          ...blockLines,
+          ...lines.slice(Math.min(lines.length, legacyMarkerIdx + 2)),
+        ].join("\n");
+        await fs.writeFile(profilePath, next, "utf-8");
+        console.log(`Completion updated. Restart your shell or run: source ${profilePath}`);
+        return;
+      }
+    }
+
+    // Upgrade known legacy one-liners even if the marker isn't present.
+    for (const legacyLine of legacyLines) {
+      const idx = lines.findIndex((line) => line.trim() === legacyLine.trim());
+      if (idx !== -1) {
+        const next = [...lines.slice(0, idx), ...blockLines, ...lines.slice(idx + 1)].join("\n");
+        await fs.writeFile(profilePath, next, "utf-8");
+        console.log(`Completion updated. Restart your shell or run: source ${profilePath}`);
+        return;
+      }
+    }
+
+    // If completion is already present (manual or previous install), don't duplicate.
     if (content.includes(`${binName} completion`)) {
       if (!yes) {
         console.log(`Completion already installed in ${profilePath}`);
@@ -93,13 +232,11 @@ export async function installCompletion(shell: string, yes: boolean, binName = "
     }
 
     if (!yes) {
-      // Simple confirmation could go here if we had a prompter,
-      // but for now we assume --yes or manual invocation implies consent or we print info.
-      // Since we don't have a prompter passed in here easily without adding deps, we'll log.
       console.log(`Installing completion to ${profilePath}...`);
     }
 
-    await fs.appendFile(profilePath, `\n# OpenClaw Completion\n${sourceLine}\n`);
+    const prefix = content.length > 0 && !content.endsWith("\n") ? "\n" : "";
+    await fs.appendFile(profilePath, `${prefix}\n${completionBlock}\n`);
     console.log(`Completion installed. Restart your shell or run: source ${profilePath}`);
   } catch (err) {
     console.error(`Failed to install completion: ${err as string}`);
