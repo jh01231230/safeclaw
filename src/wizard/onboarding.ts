@@ -42,6 +42,7 @@ import { defaultRuntime } from "../runtime.js";
 import { resolveUserPath } from "../utils.js";
 import { finalizeOnboardingWizard } from "./onboarding.finalize.js";
 import { configureGatewayForOnboarding } from "./onboarding.gateway-config.js";
+import { ensureOnboardingShellWrapper } from "./onboarding.shell.js";
 import { WizardCancelledError, type WizardPrompter } from "./prompts.js";
 
 async function requireRiskAcknowledgement(params: {
@@ -465,6 +466,11 @@ export async function runOnboardingWizard(
     prompter,
     runtime,
   });
+
+  // Optional but helpful when running from source:
+  // install a tiny `~/.local/bin/openclaw` wrapper + PATH snippet so `openclaw ...` works from any directory.
+  await ensureOnboardingShellWrapper({ prompter, runtime, binName: "openclaw" });
+
   if (launchedTui) {
     return;
   }
