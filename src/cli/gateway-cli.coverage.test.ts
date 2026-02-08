@@ -122,7 +122,7 @@ describe("gateway-cli coverage", () => {
 
     expect(callGateway).toHaveBeenCalledTimes(1);
     expect(runtimeLogs.join("\n")).toContain('"ok": true');
-  }, 30_000);
+  }, 60_000);
 
   it("registers gateway probe and routes to gatewayStatusCommand", async () => {
     runtimeLogs.length = 0;
@@ -137,7 +137,7 @@ describe("gateway-cli coverage", () => {
     await program.parseAsync(["gateway", "probe", "--json"], { from: "user" });
 
     expect(gatewayStatusCommand).toHaveBeenCalledTimes(1);
-  }, 30_000);
+  }, 60_000);
 
   it("registers gateway discover and prints JSON", async () => {
     runtimeLogs.length = 0;

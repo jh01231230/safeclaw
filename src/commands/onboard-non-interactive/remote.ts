@@ -5,6 +5,7 @@ import { formatCliCommand } from "../../cli/command-format.js";
 import { writeConfigFile } from "../../config/config.js";
 import { logConfigUpdated } from "../../config/logging.js";
 import { applyWizardMetadata } from "../onboard-helpers.js";
+import { applyNonInteractiveSandboxDefaults } from "./sandbox-defaults.js";
 
 export async function runNonInteractiveOnboardingRemote(params: {
   opts: OnboardOptions;
@@ -32,6 +33,8 @@ export async function runNonInteractiveOnboardingRemote(params: {
       },
     },
   };
+
+  nextConfig = applyNonInteractiveSandboxDefaults(nextConfig);
   nextConfig = applyWizardMetadata(nextConfig, { command: "onboard", mode });
   await writeConfigFile(nextConfig);
   logConfigUpdated(runtime);

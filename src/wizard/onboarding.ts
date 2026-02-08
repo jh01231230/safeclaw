@@ -42,6 +42,7 @@ import { defaultRuntime } from "../runtime.js";
 import { resolveUserPath } from "../utils.js";
 import { finalizeOnboardingWizard } from "./onboarding.finalize.js";
 import { configureGatewayForOnboarding } from "./onboarding.gateway-config.js";
+import { applyOnboardingSandboxSelection } from "./onboarding.sandbox.js";
 import { ensureOnboardingShellWrapper } from "./onboarding.shell.js";
 import { WizardCancelledError, type WizardPrompter } from "./prompts.js";
 
@@ -335,6 +336,7 @@ export async function runOnboardingWizard(
 
   if (mode === "remote") {
     let nextConfig = await promptRemoteGatewayConfig(baseConfig, prompter);
+    nextConfig = await applyOnboardingSandboxSelection({ nextConfig, prompter });
     nextConfig = applyWizardMetadata(nextConfig, { command: "onboard", mode });
     await writeConfigFile(nextConfig);
     logConfigUpdated(runtime);
@@ -367,6 +369,8 @@ export async function runOnboardingWizard(
       mode: "local",
     },
   };
+
+  nextConfig = await applyOnboardingSandboxSelection({ nextConfig, prompter });
 
   const authStore = ensureAuthProfileStore(undefined, {
     allowKeychainPrompt: false,

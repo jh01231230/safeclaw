@@ -19,6 +19,7 @@ import { applyNonInteractiveGatewayConfig } from "./local/gateway-config.js";
 import { logNonInteractiveOnboardingJson } from "./local/output.js";
 import { applyNonInteractiveSkillsConfig } from "./local/skills-config.js";
 import { resolveNonInteractiveWorkspaceDir } from "./local/workspace.js";
+import { applyNonInteractiveSandboxDefaults } from "./sandbox-defaults.js";
 
 export async function runNonInteractiveOnboardingLocal(params: {
   opts: OnboardOptions;
@@ -48,6 +49,8 @@ export async function runNonInteractiveOnboardingLocal(params: {
       mode: "local",
     },
   };
+
+  nextConfig = applyNonInteractiveSandboxDefaults(nextConfig);
 
   const authChoice = opts.authChoice ?? "skip";
   const nextConfigAfterAuth = await applyNonInteractiveAuthChoice({
