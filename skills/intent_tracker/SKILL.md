@@ -1,64 +1,75 @@
-# Intent Tracker Skill
+# Project-Aware Intent Tracker
 
 ## Description
 
-Automatically detects user intentions from conversations and creates follow-up reminders.
+Automatically detects project intents, generates phase-based plans, tracks progress, and provides adaptive follow-ups.
+
+## Features
+
+- **Auto Project Planning**: Generates multi-phase plans from simple intent
+- **Progress Tracking**: Detects completion signals and advances phases
+- **Smart Follow-ups**: Natural reminders at conversation opportunities
+- **Adaptive Suggestions**: AI-powered phase suggestions
 
 ## Usage
 
 ```python
-from intent_tracker import IntentAwareAssistant, IntentDetector
+from project_tracker import ProjectAwareAssistant
 
-# Detect intents
-detector = IntentDetector()
-intents = detector.detect("我想做个项目管理工具")
-# → [{intent_type: 'project', content: '项目管理工具', confidence: 0.8, ...}]
+assistant = ProjectAwareAssistant()
 
-# Process message and auto-create todos
-assistant = IntentAwareAssistant()
-result = assistant.process_message("用户: 我想做个AI助手")
-# → {'intents': [...], 'todos_created': [...], 'should_follow_up': True}
+# Process message
+result = assistant.process_message("我想做个项目管理工具")
 
-# Get follow-up message
-follow_up = assistant.get_follow_up_message()
-# → "对了，你之前说想做「AI助手」，进展怎么样啦？"
+print(result['response'])
+# → "好的！我来帮你规划「项目管理工具」..."
 ```
 
 ## CLI Commands
 
 ```bash
-# Detect intents in text
-python intent_tracker.py detect -t "文本"
+# Create project / track progress
+python project_tracker.py create -t "我想做个XX"
 
-# List pending todos
-python intent_tracker.py list
+# List all projects
+python project_tracker.py list
 
-# Complete a todo
-python intent_tracker.py complete --id todo_abc123
+# Generate follow-ups
+python project_tracker.py followup
 
-# Check reminder candidates
-python intent_tracker.py remind
+# Run demo
+python project_tracker.py demo
 ```
 
-## Detected Intent Types
+## Project Phases
 
-| Type | Examples | Priority |
-|------|----------|----------|
-| project | "我要做个项目管理工具" | High (4) |
-| decision | "决定了，就用 Python" | Medium-High (3) |
-| todo | "记得去配置服务器" | Medium (2) |
-| schedule | "明天要开评审会" | Highest (5) |
+| Template | Phases |
+|----------|--------|
+| Web 应用 | 需求分析 → 原型设计 → 后端开发 → 前端开发 → 测试 → 部署上线 |
+| API 服务 | API 设计 → 接口开发 → 文档编写 → 测试 → 部署 |
+| 移动应用 | 需求分析 → UI/UX设计 → 前端开发 → 后端开发 → 测试 → 上架 |
 
-## Files
+## How It Works
 
-- `intent_tracker.py` - Main module
-- `demo.py` - Demo script
+```
+1. User: "我想做个项目管理工具"
+   → Detect project intent
+   → Generate 6-phase plan
+   → Create project record
+
+2. User: "原型图画完了"
+   → Detect progress
+   → Advance to next phase
+   → Generate encouragement + suggestion
+
+3. User: "今天天气不错"
+   → Detect follow-up opportunity
+   → Natural reminder: "「XX」有什么进展吗？"
+```
 
 ## Data Storage
 
-Data stored in `/home/tars/Workspace/safeclaw/data/`:
-- `intents_detected.json` - Detected intents
-- `intents_todos.json` - Todo items
+Projects stored in: `/home/tars/Workspace/safeclaw/data/projects.json`
 
 ## Integration
 
@@ -67,17 +78,10 @@ Data stored in `/home/tars/Workspace/safeclaw/data/`:
 Add to `HEARTBEAT.md`:
 
 ```markdown
-# Intent Follow-up
-Check: `python intent_tracker.py remind`
-Generate: `assistant.get_follow_up_message()`
+# Project Follow-up
+Check: `python project_tracker.py followup`
 ```
 
-## Examples
+### With Memory
 
-```
-💬 用户: 我想做个项目管理工具
-🤖 AI: 检测到项目意图！已创建待办。
-
-💬 用户: 今天天气不错  
-🤖 AI: 是的！对了，你之前说想做「项目管理工具」，进展怎么样啦？
-```
+Projects are automatically saved and persisted across sessions.
